@@ -4,6 +4,7 @@ public enum Department {
     ADMIN,
     DESIGN,
     PRODUCTION,
+    PRODUCTION_READY,
     INSPECTION,
     MACHINING,
     COMPLETED,

@@ -54,6 +54,8 @@ public class PdfRowExtractor extends PDFTextStripper {
             pageLineMap.put(page, lineMap);
 
             int rowIndex = 0;
+            // Use the page's height so the frontend can map PDF coordinates -> canvas coordinates accurately
+            float pageHeight = getCurrentPage().getMediaBox().getHeight();
             for (Map.Entry<Float, List<TextPosition>> entry : lineMap.entrySet()) {
                 Float y = entry.getKey();
                 List<TextPosition> texts = entry.getValue();
@@ -65,7 +67,7 @@ public class PdfRowExtractor extends PDFTextStripper {
                 String text = sb.toString().trim();
                 if (!text.isEmpty()) {
                     String rowId = "p" + page + "_r" + rowIndex;
-                    rows.add(new PdfRow(rowId, page, y, text));
+                    rows.add(new PdfRow(rowId, page, y, pageHeight, text));
                     rowIndex++;
                 }
             }

@@ -1,8 +1,6 @@
 package com.switflow.swiftFlow.Service;
 
-import com.switflow.swiftFlow.Entity.Orders;
 import com.switflow.swiftFlow.Entity.Status;
-import com.switflow.swiftFlow.Repo.OrderRepository;
 import com.switflow.swiftFlow.Repo.StatusRepository;
 import com.switflow.swiftFlow.Response.StatusResponse;
 import com.switflow.swiftFlow.pdf.PdfRow;
@@ -21,6 +19,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.util.Objects;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -34,9 +33,6 @@ public class PdfService {
 
     @Autowired
     private StatusRepository statusRepository;
-
-    @Autowired
-    private OrderRepository orderRepository;
 
     @Autowired
     private CloudinaryService cloudinaryService;
@@ -63,7 +59,9 @@ public class PdfService {
     private String findDesignPdfUrl(long orderId) {
         List<Status> statuses = statusRepository.findByOrdersOrderId(orderId);
         return statuses.stream()
-                .filter(s -> s.getAttachmentUrl() != null && s.getAttachmentUrl().toLowerCase().endsWith(".pdf"))
+                .filter(s -> s.getAttachmentUrl() != null
+                        && s.getAttachmentUrl().toLowerCase().endsWith(".pdf")
+                        && s.getNewStatus() == Department.DESIGN)
                 .sorted(Comparator.comparing(Status::getId).reversed())
                 .map(Status::getAttachmentUrl)
                 .findFirst()
@@ -73,7 +71,7 @@ public class PdfService {
     public StatusResponse generateFilteredPdf(long orderId, List<String> selectedRowIds) throws IOException {
         String pdfUrl = findDesignPdfUrl(orderId);
         if (pdfUrl == null) {
-            throw new IllegalStateException("No source PDF found for order " + orderId);
+            throw new IllegalStateException("No DESIGN PDF found for order " + orderId);
         }
 
         List<PdfRow> allRows = analyzePdfRows(orderId);
@@ -82,7 +80,7 @@ public class PdfService {
 
         List<PdfRow> selectedRows = selectedRowIds.stream()
                 .map(rowMap::get)
-                .filter(r -> r != null)
+                .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(PdfRow::getPageNumber).thenComparing(PdfRow::getYPosition))
                 .collect(Collectors.toList());
 
@@ -93,8 +91,20 @@ public class PdfService {
         byte[] filteredPdfBytes = createSimplePdfFromRows(selectedRows);
         String filteredUrl = cloudinaryService.uploadBytes(filteredPdfBytes);
 
-        // Create a status entry moving order to PRODUCTION with the filtered PDF
+        // Always create PRODUCTION status pointing at DESIGN-based filtered PDF
         return statusService.createFilteredPdfStatus(orderId, filteredUrl, Department.PRODUCTION);
+    }
+
+    public StatusResponse saveRowSelection(long orderId, List<String> selectedRowIds, Department ignoredTargetStatus) {
+        String jsonComment = "{\"selectedRowIds\":" + selectedRowIds.toString() + "}";
+        com.switflow.swiftFlow.Request.StatusRequest request = new com.switflow.swiftFlow.Request.StatusRequest();
+        // Force PRODUCTION regardless of client input
+        request.setNewStatus(Department.PRODUCTION);
+        request.setComment(jsonComment);
+        request.setPercentage(null);
+        // Always reference the DESIGN PDF as attachment
+        request.setAttachmentUrl(findDesignPdfUrl(orderId));
+        return statusService.createStatus(request, orderId);
     }
 
     private byte[] createSimplePdfFromRows(List<PdfRow> rows) throws IOException {

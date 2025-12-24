@@ -12,7 +12,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * Customer Controller
+ */
 @RestController
 @RequestMapping("/customer")
 @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
@@ -29,6 +33,17 @@ public class CustomerController {
             return ResponseEntity.ok(response);
         } catch (CustomerEmailAlreadyExistsException e) {
             return ResponseEntity.status(409).body(new MessageResponse(e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(new MessageResponse(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/upload-excel")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> uploadCustomersFromExcel(@RequestParam("file") MultipartFile file) {
+        try {
+            MessageResponse response = customerService.importCustomersFromExcel(file);
+            return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(new MessageResponse(e.getMessage()));
         }
