@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -12,8 +13,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -38,7 +39,7 @@ public class StatusController {
    
    
     @PostMapping("/create/{orderId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING','INSPECTION')")
     public ResponseEntity<StatusResponse> createStatus(
             @PathVariable long orderId, 
             @RequestPart("status") StatusRequest statusRequest,
@@ -57,7 +58,7 @@ public class StatusController {
     // }
 
     @GetMapping("/order/{orderId}")
-    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MECHANIC','INSPECTION')")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING','INSPECTION')")
     public ResponseEntity<List<StatusResponse>> getStatusesByOrderId(@PathVariable long orderId,
             Authentication authentication) {
 
@@ -77,5 +78,18 @@ public class StatusController {
         }
 
         return ResponseEntity.ok(responses);
+    }
+
+    @PostMapping("/upload-pdf")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING','INSPECTION')")
+    public ResponseEntity<?> uploadPdf(@RequestPart("file") MultipartFile file) {
+        try {
+            String url = statusService.uploadAttachment(file);
+            return ResponseEntity.ok().body(java.util.Collections.singletonMap("attachmentUrl", url));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+        } catch (IOException ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to upload file");
+        }
     }
 }

@@ -23,31 +23,31 @@ public class PdfSubnestController {
     private PdfSubnestService pdfSubnestService;
 
     @GetMapping("/mock")
-    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION')")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING')")
     public ResponseEntity<List<SubNestRowDto>> getMockSubnestRows() {
         return ResponseEntity.ok(pdfSubnestService.getMockSubnestRows());
     }
 
     @GetMapping("/by-url")
-    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION')")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING')")
     public ResponseEntity<List<SubNestRowDto>> getSubnestByUrl(@RequestParam("attachmentUrl") String attachmentUrl) {
         return ResponseEntity.ok(pdfSubnestService.parseSubnestFromUrl(attachmentUrl));
     }
 
     @GetMapping("/parts/by-url")
-    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION')")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING')")
     public ResponseEntity<List<PartsRowDto>> getPartsByUrl(@RequestParam("attachmentUrl") String attachmentUrl) {
         return ResponseEntity.ok(pdfSubnestService.parsePartsFromUrl(attachmentUrl));
     }
 
     @GetMapping("/material-data/by-url")
-    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION')")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING')")
     public ResponseEntity<List<MaterialDataRowDto>> getMaterialDataByUrl(@RequestParam("attachmentUrl") String attachmentUrl) {
         return ResponseEntity.ok(pdfSubnestService.parseMaterialDataFromUrl(attachmentUrl));
     }
 
     @GetMapping("/debug-text")
-    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION')")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING')")
     public ResponseEntity<String> getPdfRawText(@RequestParam("attachmentUrl") String attachmentUrl) throws Exception {
         String text = pdfSubnestService.extractRawTextFromUrl(attachmentUrl);
         return ResponseEntity.ok(text);

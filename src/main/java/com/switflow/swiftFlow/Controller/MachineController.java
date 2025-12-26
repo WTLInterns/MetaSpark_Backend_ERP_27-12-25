@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 
 @RestController
@@ -33,7 +35,6 @@ public class MachineController {
     }
 
     @GetMapping("/getAllMachines")
-    @PreAuthorize("hasRole('ADMIN')")
     public List<MachinesResponse> getAllMachines() {
         return machinesService.getAllMachines();
     }
@@ -43,7 +44,17 @@ public class MachineController {
         return machinesService.getMachines(id);
     }
 
-    
+    @PutMapping("/update-machine/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public MachinesResponse updateMachine(@PathVariable int id, @RequestBody MachinesRequest machinesRequest) {
+        return machinesService.updateMachines(id, machinesRequest);
+    }
+
+    @DeleteMapping("/delete-machine/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteMachine(@PathVariable int id) {
+        machinesService.deleteMachines(id);
+    }
 
 
 }

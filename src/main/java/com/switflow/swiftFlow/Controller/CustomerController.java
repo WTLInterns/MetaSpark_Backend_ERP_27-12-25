@@ -49,15 +49,14 @@ public class CustomerController {
         }
     }
 
-    @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping({"/all", "/getAll"})
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING','INSPECTION')")
     public ResponseEntity<?> getAllCustomers() {
         try {
             List<CustomerResposne> response = this.customerService.getAllCustomers();
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(new MessageResponse(e.getMessage()));
-
         }
     }
 

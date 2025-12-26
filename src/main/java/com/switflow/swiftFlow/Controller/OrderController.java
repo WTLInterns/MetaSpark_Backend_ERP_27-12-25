@@ -48,7 +48,7 @@ public class OrderController {
     }
 
     @GetMapping("/getAll")
-    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MECHANIC','INSPECTION')")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING','INSPECTION')")
     public ResponseEntity<List<OrderResponse>> getAllOrders(Authentication authentication) {
         String username = authentication.getName();
         User user = userRepository.findByUsername(username)
@@ -76,7 +76,7 @@ public class OrderController {
     }
 
     @GetMapping("/getCountByDepartment")
-    @PreAuthorize("hasAnyRole('ADMIN','DESIGN')")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING','INSPECTION')")
     public ResponseEntity<List<DepartmentOrderCountResponse>> getOrderCountByDepartment() {
         List<DepartmentOrderCountResponse> response = orderService.getOrderCountByDepartment();
         return ResponseEntity.ok(response);

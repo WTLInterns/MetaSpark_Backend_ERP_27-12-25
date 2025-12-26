@@ -112,8 +112,14 @@ public class StatusService {
         // Call the main createStatus method with the updated statusRequest
         return createStatus(statusRequest, orderId);
     }
-   
     
+    public String uploadAttachment(MultipartFile attachment) throws IOException {
+        if (attachment == null || attachment.isEmpty()) {
+            throw new IllegalArgumentException("Attachment file is empty");
+        }
+        return cloudinaryService.uploadFile(attachment);
+    }
+   
     public List<StatusResponse> getStatusesByOrderId(long orderId) {
         return statusRepository.findByOrdersOrderId(orderId).stream()
                 .map(status -> {

@@ -95,15 +95,40 @@ public class PdfService {
         return statusService.createFilteredPdfStatus(orderId, filteredUrl, Department.PRODUCTION);
     }
 
-    public StatusResponse saveRowSelection(long orderId, List<String> selectedRowIds, Department ignoredTargetStatus) {
-        String jsonComment = "{\"selectedRowIds\":" + selectedRowIds.toString() + "}";
+    public StatusResponse saveRowSelection(long orderId,
+                                           List<String> selectedRowIds,
+                                           Department targetStatus,
+                                           String attachmentUrl,
+                                           Long machineId,
+                                           String machineName) {
+        StringBuilder commentBuilder = new StringBuilder();
+        commentBuilder.append("{\"selectedRowIds\":");
+        commentBuilder.append(selectedRowIds.toString());
+        if (machineId != null) {
+            commentBuilder.append(",\"machineId\":").append(machineId);
+        }
+        if (machineName != null && !machineName.isBlank()) {
+            commentBuilder.append(",\"machineName\":\"")
+                    .append(machineName.replace("\"", "\\\""))
+                    .append("\"");
+        }
+        commentBuilder.append('}');
+
+        String jsonComment = commentBuilder.toString();
         com.switflow.swiftFlow.Request.StatusRequest request = new com.switflow.swiftFlow.Request.StatusRequest();
-        // Force PRODUCTION regardless of client input
-        request.setNewStatus(Department.PRODUCTION);
+        // Use provided targetStatus when available, defaulting to PRODUCTION
+        Department effectiveStatus = (targetStatus != null) ? targetStatus : Department.PRODUCTION;
+        request.setNewStatus(effectiveStatus);
         request.setComment(jsonComment);
         request.setPercentage(null);
-        // Always reference the DESIGN PDF as attachment
-        request.setAttachmentUrl(findDesignPdfUrl(orderId));
+
+        // Prefer explicit attachmentUrl from client (e.g. uploaded PDF),
+        // but fall back to the DESIGN PDF if none is provided.
+        String finalUrl = (attachmentUrl != null && !attachmentUrl.isBlank())
+                ? attachmentUrl
+                : findDesignPdfUrl(orderId);
+        request.setAttachmentUrl(finalUrl);
+
         return statusService.createStatus(request, orderId);
     }
 

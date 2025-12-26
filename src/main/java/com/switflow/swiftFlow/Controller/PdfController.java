@@ -1,8 +1,12 @@
 package com.switflow.swiftFlow.Controller;
 
 import com.switflow.swiftFlow.Response.StatusResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.switflow.swiftFlow.Service.PdfService;
 import com.switflow.swiftFlow.Service.StatusService;
+import com.switflow.swiftFlow.Service.MachinesService;
+import com.switflow.swiftFlow.Response.MachinesResponse;
 import com.switflow.swiftFlow.pdf.PdfRow;
 import com.switflow.swiftFlow.utility.Department;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Map;
 
 @RestController
@@ -25,6 +31,11 @@ public class PdfController {
     @Autowired
     private StatusService statusService;
 
+    @Autowired
+    private MachinesService machinesService;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @GetMapping("/order/{orderId}/rows")
     @PreAuthorize("hasAnyRole('ADMIN','DESIGN')")
     public ResponseEntity<List<PdfRow>> getPdfRows(@PathVariable long orderId) throws IOException {
@@ -34,6 +45,7 @@ public class PdfController {
 
     public static class RowSelectionRequest {
         private List<String> selectedRowIds;
+        private Long machineId; // optional, used for machining-selection
 
         public List<String> getSelectedRowIds() {
             return selectedRowIds;
@@ -42,10 +54,21 @@ public class PdfController {
         public void setSelectedRowIds(List<String> selectedRowIds) {
             this.selectedRowIds = selectedRowIds;
         }
+
+        public Long getMachineId() {
+            return machineId;
+        }
+
+        public void setMachineId(Long machineId) {
+            this.machineId = machineId;
+        }
     }
 
     public static class RowSelectionStatusRequest extends RowSelectionRequest {
         private Department targetStatus;
+
+        // Optional explicit attachmentUrl for PRODUCTION / PRODUCTION_READY status
+        private String attachmentUrl;
 
         public Department getTargetStatus() {
             return targetStatus;
@@ -53,6 +76,14 @@ public class PdfController {
 
         public void setTargetStatus(Department targetStatus) {
             this.targetStatus = targetStatus;
+        }
+
+        public String getAttachmentUrl() {
+            return attachmentUrl;
+        }
+
+        public void setAttachmentUrl(String attachmentUrl) {
+            this.attachmentUrl = attachmentUrl;
         }
     }
 
@@ -103,7 +134,10 @@ public class PdfController {
             StatusResponse response = pdfService.saveRowSelection(
                     orderId,
                     request.getSelectedRowIds(),
-                    Department.PRODUCTION
+                    Department.PRODUCTION,
+                    request.getAttachmentUrl(),
+                    null,
+                    null
             );
             return ResponseEntity.ok(response);
         } catch (IllegalStateException | IllegalArgumentException e) {
@@ -140,31 +174,66 @@ public class PdfController {
         }
 
         String comment = latest.getComment();
+        if (comment == null || comment.isBlank()) {
+            return ResponseEntity.ok(Map.of("selectedRowIds", List.of()));
+        }
         try {
-            int start = comment.indexOf('[');
-            int end = comment.indexOf(']');
-            if (start == -1 || end == -1 || end <= start) {
-                return ResponseEntity.ok(Map.of("selectedRowIds", List.of()));
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(comment);
+
+            List<String> ids = new ArrayList<>();
+            JsonNode arr = root.get("selectedRowIds");
+            if (arr != null && arr.isArray()) {
+                for (JsonNode n : arr) {
+                    ids.add(n.asText());
+                }
             }
 
-            String inside = comment.substring(start + 1, end);
-            String[] parts = inside.split(",");
-            List<String> ids = new ArrayList<>();
-            for (String p : parts) {
-                String id = p.trim();
-                if (id.startsWith("\"")) {
-                    id = id.substring(1);
-                }
-                if (id.endsWith("\"")) {
-                    id = id.substring(0, id.length() - 1);
-                }
-                if (!id.isEmpty()) {
-                    ids.add(id);
-                }
+            Long machineId = null;
+            String machineName = null;
+            if (root.has("machineId")) {
+                machineId = root.get("machineId").isNull() ? null : root.get("machineId").asLong();
             }
-            return ResponseEntity.ok(Map.of("selectedRowIds", ids));
+            if (root.has("machineName")) {
+                machineName = root.get("machineName").isNull() ? null : root.get("machineName").asText();
+            }
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("selectedRowIds", ids);
+            if (machineId != null) {
+                result.put("machineId", machineId);
+            }
+            if (machineName != null) {
+                result.put("machineName", machineName);
+            }
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.ok(Map.of("selectedRowIds", List.of()));
+            // Fallback: try old string parsing for selectedRowIds only
+            try {
+                int start = comment.indexOf('[');
+                int end = comment.indexOf(']');
+                if (start == -1 || end == -1 || end <= start) {
+                    return ResponseEntity.ok(Map.of("selectedRowIds", List.of()));
+                }
+                String inside = comment.substring(start + 1, end);
+                String[] parts = inside.split(",");
+                List<String> ids = new ArrayList<>();
+                for (String p : parts) {
+                    String id = p.trim();
+                    if (id.startsWith("\"")) {
+                        id = id.substring(1);
+                    }
+                    if (id.endsWith("\"")) {
+                        id = id.substring(0, id.length() - 1);
+                    }
+                    if (!id.isEmpty()) {
+                        ids.add(id);
+                    }
+                }
+                return ResponseEntity.ok(Map.of("selectedRowIds", ids));
+            } catch (Exception fallback) {
+                return ResponseEntity.ok(Map.of("selectedRowIds", List.of()));
+            }
         }
     }
 
@@ -181,11 +250,25 @@ public class PdfController {
                         "status", 400
                 ));
             }
+            Long machineId = request.getMachineId();
+            String machineName = null;
+            if (machineId != null) {
+                try {
+                    MachinesResponse machine = machinesService.getMachines(machineId.intValue());
+                    if (machine != null) {
+                        machineName = machine.getMachineName();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
 
             StatusResponse response = pdfService.saveRowSelection(
                     orderId,
                     request.getSelectedRowIds(),
-                    Department.MACHINING
+                    Department.MACHINING,
+                    null,
+                    machineId,
+                    machineName
             );
             return ResponseEntity.ok(response);
         } catch (IllegalStateException | IllegalArgumentException e) {
@@ -222,31 +305,59 @@ public class PdfController {
         }
 
         String comment = latest.getComment();
+        if (comment == null || comment.isBlank()) {
+            return ResponseEntity.ok(Map.of("selectedRowIds", List.of()));
+        }
         try {
-            int start = comment.indexOf('[');
-            int end = comment.indexOf(']');
-            if (start == -1 || end == -1 || end <= start) {
+            JsonNode node = objectMapper.readTree(comment);
+            JsonNode selectedArray = node.get("selectedRowIds");
+            List<String> ids = new ArrayList<>();
+            if (selectedArray != null && selectedArray.isArray()) {
+                for (JsonNode idNode : selectedArray) {
+                    String id = idNode.asText();
+                    if (id != null && !id.isBlank()) {
+                        ids.add(id);
+                    }
+                }
+            }
+            Map<String, Object> result = new HashMap<>();
+            result.put("selectedRowIds", ids);
+            JsonNode machineIdNode = node.get("machineId");
+            if (machineIdNode != null && !machineIdNode.isNull()) {
+                result.put("machineId", machineIdNode.asLong());
+            }
+            JsonNode machineNameNode = node.get("machineName");
+            if (machineNameNode != null && !machineNameNode.isNull()) {
+                result.put("machineName", machineNameNode.asText());
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            // Fallback: try old parsing logic for selectedRowIds only
+            try {
+                int start = comment.indexOf('[');
+                int end = comment.indexOf(']');
+                if (start == -1 || end == -1 || end <= start) {
+                    return ResponseEntity.ok(Map.of("selectedRowIds", List.of()));
+                }
+                String inside = comment.substring(start + 1, end);
+                String[] parts = inside.split(",");
+                List<String> ids = new ArrayList<>();
+                for (String p : parts) {
+                    String id = p.trim();
+                    if (id.startsWith("\"")) {
+                        id = id.substring(1);
+                    }
+                    if (id.endsWith("\"")) {
+                        id = id.substring(0, id.length() - 1);
+                    }
+                    if (!id.isEmpty()) {
+                        ids.add(id);
+                    }
+                }
+                return ResponseEntity.ok(Map.of("selectedRowIds", ids));
+            } catch (Exception fallback) {
                 return ResponseEntity.ok(Map.of("selectedRowIds", List.of()));
             }
-
-            String inside = comment.substring(start + 1, end);
-            String[] parts = inside.split(",");
-            List<String> ids = new ArrayList<>();
-            for (String p : parts) {
-                String id = p.trim();
-                if (id.startsWith("\"")) {
-                    id = id.substring(1);
-                }
-                if (id.endsWith("\"")) {
-                    id = id.substring(0, id.length() - 1);
-                }
-                if (!id.isEmpty()) {
-                    ids.add(id);
-                }
-            }
-            return ResponseEntity.ok(Map.of("selectedRowIds", ids));
-        } catch (Exception e) {
-            return ResponseEntity.ok(Map.of("selectedRowIds", List.of()));
         }
     }
 }
