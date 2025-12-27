@@ -132,6 +132,44 @@ public class PdfService {
         return statusService.createStatus(request, orderId);
     }
 
+    // Variant used by the three-checkbox selection flow: it records the
+    // selectedRowIds in a Status comment but does NOT update the
+    // Orders.department field. Workflow transitions are handled
+    // separately via StatusController.createStatus.
+    public StatusResponse saveRowSelectionWithoutTransition(long orderId,
+                                                            List<String> selectedRowIds,
+                                                            Department targetStatus,
+                                                            String attachmentUrl,
+                                                            Long machineId,
+                                                            String machineName) {
+        StringBuilder commentBuilder = new StringBuilder();
+        commentBuilder.append("{\"selectedRowIds\":");
+        commentBuilder.append(selectedRowIds.toString());
+        if (machineId != null) {
+            commentBuilder.append(",\"machineId\":").append(machineId);
+        }
+        if (machineName != null && !machineName.isBlank()) {
+            commentBuilder.append(",\"machineName\":\"")
+                    .append(machineName.replace("\"", "\\\""))
+                    .append("\"");
+        }
+        commentBuilder.append('}');
+
+        String jsonComment = commentBuilder.toString();
+        com.switflow.swiftFlow.Request.StatusRequest request = new com.switflow.swiftFlow.Request.StatusRequest();
+        Department effectiveStatus = (targetStatus != null) ? targetStatus : Department.PRODUCTION;
+        request.setNewStatus(effectiveStatus);
+        request.setComment(jsonComment);
+        request.setPercentage(null);
+
+        String finalUrl = (attachmentUrl != null && !attachmentUrl.isBlank())
+                ? attachmentUrl
+                : findDesignPdfUrl(orderId);
+        request.setAttachmentUrl(finalUrl);
+
+        return statusService.createCheckboxStatus(request, orderId);
+    }
+
     private byte[] createSimplePdfFromRows(List<PdfRow> rows) throws IOException {
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(PDRectangle.A4);

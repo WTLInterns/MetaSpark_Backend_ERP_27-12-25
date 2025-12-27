@@ -69,6 +69,40 @@ public class StatusService {
         return response;
     }
 
+    // Persist a checkbox-related Status entry without changing the
+    // Orders.department workflow state. This is used by the
+    // three-checkbox selection API so that workflow transitions are
+    // handled only by the main createStatus endpoint.
+    public StatusResponse createCheckboxStatus(StatusRequest statusRequest, long orderId) {
+        Orders order = this.orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException("Order not found with ID: " + orderId));
+
+        Status status = new Status();
+        status.setOldStatus(order.getDepartment());
+        status.setNewStatus(statusRequest.getNewStatus());
+        status.setComment(statusRequest.getComment());
+        status.setPercentage(statusRequest.getPercentage());
+        status.setAttachmentUrl(statusRequest.getAttachmentUrl());
+        status.setOrders(order);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+        status.setCreatedAt(LocalDate.now().format(formatter));
+
+        Status savedStatus = statusRepository.save(status);
+
+        StatusResponse response = new StatusResponse();
+        response.setId(savedStatus.getId());
+        response.setNewStatus(savedStatus.getNewStatus());
+        response.setOldStatus(savedStatus.getOldStatus());
+        response.setComment(savedStatus.getComment());
+        response.setAttachmentUrl(savedStatus.getAttachmentUrl());
+        response.setOrderId(savedStatus.getOrders().getOrderId());
+        response.setPercentage(savedStatus.getPercentage());
+        response.setCreatedAt(savedStatus.getCreatedAt());
+
+        return response;
+    }
+
     public StatusResponse createFilteredPdfStatus(long orderId, String filteredPdfUrl, Department targetDepartment) {
         Orders order = this.orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("Order not found with ID: " + orderId));

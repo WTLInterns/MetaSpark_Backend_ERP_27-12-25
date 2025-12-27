@@ -12,6 +12,9 @@ import com.switflow.swiftFlow.utility.Department;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -462,9 +465,29 @@ public class PdfController {
                 ));
             }
 
-            // Save designer selection
-            if (request.getDesignerSelectedRowIds() != null && !request.getDesignerSelectedRowIds().isEmpty()) {
-                pdfService.saveRowSelection(
+            // Determine caller role from Spring Security
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String role = null;
+            if (authentication != null && authentication.getAuthorities() != null) {
+                for (GrantedAuthority authority : authentication.getAuthorities()) {
+                    String auth = authority.getAuthority();
+                    if (auth != null && auth.startsWith("ROLE_")) {
+                        role = auth;
+                        break;
+                    }
+                }
+            }
+
+            boolean isAdmin = "ROLE_ADMIN".equals(role);
+            boolean isDesign = "ROLE_DESIGN".equals(role);
+            boolean isProduction = "ROLE_PRODUCTION".equals(role);
+            boolean isMachining = "ROLE_MACHINING".equals(role);
+
+            // Save designer selection – only DESIGN or ADMIN may write this
+            if ((isDesign || isAdmin)
+                    && request.getDesignerSelectedRowIds() != null
+                    && !request.getDesignerSelectedRowIds().isEmpty()) {
+                pdfService.saveRowSelectionWithoutTransition(
                         orderId,
                         request.getDesignerSelectedRowIds(),
                         Department.DESIGN,
@@ -474,9 +497,11 @@ public class PdfController {
                 );
             }
 
-            // Save production selection
-            if (request.getProductionSelectedRowIds() != null && !request.getProductionSelectedRowIds().isEmpty()) {
-                pdfService.saveRowSelection(
+            // Save production selection – only PRODUCTION or ADMIN may write this
+            if ((isProduction || isAdmin)
+                    && request.getProductionSelectedRowIds() != null
+                    && !request.getProductionSelectedRowIds().isEmpty()) {
+                pdfService.saveRowSelectionWithoutTransition(
                         orderId,
                         request.getProductionSelectedRowIds(),
                         Department.PRODUCTION,
@@ -486,8 +511,10 @@ public class PdfController {
                 );
             }
 
-            // Save machine selection
-            if (request.getMachineSelectedRowIds() != null && !request.getMachineSelectedRowIds().isEmpty()) {
+            // Save machine selection – only MACHINING or ADMIN may write this
+            if ((isMachining || isAdmin)
+                    && request.getMachineSelectedRowIds() != null
+                    && !request.getMachineSelectedRowIds().isEmpty()) {
                 String machineName = null;
                 if (request.getMachineId() != null) {
                     try {
@@ -499,9 +526,7 @@ public class PdfController {
                     }
                 }
 
-                // include a marker flag in the stored comment so we can distinguish
-                // three-checkbox based machining selections from any older data
-                pdfService.saveRowSelection(
+                pdfService.saveRowSelectionWithoutTransition(
                         orderId,
                         request.getMachineSelectedRowIds(),
                         Department.MACHINING,
