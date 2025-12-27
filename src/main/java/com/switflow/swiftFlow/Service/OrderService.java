@@ -2,6 +2,7 @@ package com.switflow.swiftFlow.Service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.switflow.swiftFlow.Entity.Customer;
 import com.switflow.swiftFlow.Entity.Orders;
@@ -287,5 +288,165 @@ public class OrderService {
             .filter(dept -> dept != Department.ADMIN) // Exclude ADMIN department
             .map(dept -> new DepartmentOrderCountResponse(dept.name(), orderRepository.findByDepartment(dept).size()))
             .collect(Collectors.toList());
+    }
+    
+    /**
+     * Update an existing order
+     * @param orderId The ID of the order to update
+     * @param orderRequest The updated order details
+     * @return The updated order response
+     */
+    @Transactional
+    public OrderResponse updateOrder(Long orderId, OrderRequest orderRequest) {
+        Orders order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException("Order not found with ID: " + orderId));
+        
+        // Store old customer and product IDs for cleanup
+        Integer oldCustomerId = null;
+        Integer oldProductId = null;
+        
+        if (order.getCustomers() != null && !order.getCustomers().isEmpty()) {
+            oldCustomerId = order.getCustomers().get(0).getCustomerId();
+        }
+        if (order.getProducts() != null && !order.getProducts().isEmpty()) {
+            oldProductId = order.getProducts().get(0).getId();
+        }
+        
+        // Update order fields
+        order.setCustomProductDetails(orderRequest.getCustomProductDetails());
+        order.setUnits(orderRequest.getUnits());
+        order.setMaterial(orderRequest.getMaterial());
+        order.setDepartment(orderRequest.getDepartment());
+        
+        // Handle customer relationship update
+        if (orderRequest.getCustomerId() != null) {
+            Customer newCustomer = customerRepository.findById(orderRequest.getCustomerId())
+                    .orElseThrow(() -> new RuntimeException("Customer not found with ID: " + orderRequest.getCustomerId()));
+            
+            // Remove order from old customer's orders list if different
+            if (oldCustomerId != null && !oldCustomerId.equals(orderRequest.getCustomerId())) {
+                Customer oldCustomer = customerRepository.findById(oldCustomerId).orElse(null);
+                if (oldCustomer != null && oldCustomer.getOrders() != null) {
+                    oldCustomer.getOrders().removeIf(o -> o.getOrderId().equals(orderId));
+                    customerRepository.save(oldCustomer);
+                }
+            }
+            
+            // Add order to new customer's orders list if not already present
+            if (newCustomer.getOrders() == null) {
+                newCustomer.setOrders(new ArrayList<>());
+            }
+            if (!newCustomer.getOrders().stream().anyMatch(o -> o.getOrderId().equals(orderId))) {
+                newCustomer.getOrders().add(order);
+                customerRepository.save(newCustomer);
+            }
+            
+            // Update order's customer reference
+            order.getCustomers().clear();
+            order.getCustomers().add(newCustomer);
+        } else {
+            // Clear customer relationship
+            if (oldCustomerId != null) {
+                Customer oldCustomer = customerRepository.findById(oldCustomerId).orElse(null);
+                if (oldCustomer != null && oldCustomer.getOrders() != null) {
+                    oldCustomer.getOrders().removeIf(o -> o.getOrderId().equals(orderId));
+                    customerRepository.save(oldCustomer);
+                }
+            }
+            order.getCustomers().clear();
+        }
+        
+        // Handle product relationship update
+        if (orderRequest.getProductId() != null) {
+            Product newProduct = productRepository.findById(orderRequest.getProductId())
+                    .orElseThrow(() -> new RuntimeException("Product not found with ID: " + orderRequest.getProductId()));
+            
+            // Remove order from old product's orders list if different
+            if (oldProductId != null && !oldProductId.equals(orderRequest.getProductId())) {
+                Product oldProduct = productRepository.findById(oldProductId).orElse(null);
+                if (oldProduct != null && oldProduct.getOrders() != null) {
+                    oldProduct.getOrders().removeIf(o -> o.getOrderId().equals(orderId));
+                    productRepository.save(oldProduct);
+                }
+            }
+            
+            // Add order to new product's orders list if not already present
+            if (newProduct.getOrders() == null) {
+                newProduct.setOrders(new ArrayList<>());
+            }
+            if (!newProduct.getOrders().stream().anyMatch(o -> o.getOrderId().equals(orderId))) {
+                newProduct.getOrders().add(order);
+                productRepository.save(newProduct);
+            }
+            
+            // Update order's product reference
+            order.getProducts().clear();
+            order.getProducts().add(newProduct);
+        } else {
+            // Clear product relationship
+            if (oldProductId != null) {
+                Product oldProduct = productRepository.findById(oldProductId).orElse(null);
+                if (oldProduct != null && oldProduct.getOrders() != null) {
+                    oldProduct.getOrders().removeIf(o -> o.getOrderId().equals(orderId));
+                    productRepository.save(oldProduct);
+                }
+            }
+            order.getProducts().clear();
+        }
+        
+        // Save updated order
+        Orders updatedOrder = orderRepository.save(order);
+        
+        return convertToOrderResponse(updatedOrder);
+    }
+    
+    /**
+     * Helper method to convert Orders entity to OrderResponse
+     * @param order The order entity
+     * @return The order response
+     */
+    private OrderResponse convertToOrderResponse(Orders order) {
+        OrderResponse response = new OrderResponse();
+        response.setOrderId(order.getOrderId());
+        response.setProductDetails(order.getProductDetails());
+        response.setCustomProductDetails(order.getCustomProductDetails());
+        response.setUnits(order.getUnits());
+        response.setMaterial(order.getMaterial());
+        response.setStatus(order.getStatus());
+        response.setDateAdded(order.getDateAdded());
+        response.setDepartment(order.getDepartment());
+        
+        if (order.getCustomers() != null && !order.getCustomers().isEmpty()) {
+            List<CustomerInfo> customerInfos = order.getCustomers().stream()
+                .map(customer -> {
+                    CustomerInfo info = new CustomerInfo();
+                    info.setCustomerId(customer.getCustomerId());
+                    info.setCustomerName(customer.getCustomerName());
+                    info.setCompanyName(customer.getCompanyName());
+                    info.setCustomerEmail(customer.getCustomerEmail());
+                    info.setCustomerPhone(customer.getCustomerPhone());
+                    info.setPrimaryAddress(customer.getPrimaryAddress());
+                    info.setBillingAddress(customer.getBillingAddress());
+                    info.setShippingAddress(customer.getShippingAddress());
+                    return info;
+                })
+                .collect(Collectors.toList());
+            response.setCustomers(customerInfos);
+        }
+        
+        if (order.getProducts() != null && !order.getProducts().isEmpty()) {
+            List<ProductInfo> productInfos = order.getProducts().stream()
+                .map(product -> {
+                    ProductInfo info = new ProductInfo();
+                    info.setProductId(product.getId());
+                    info.setProductCode(product.getProductCode());
+                    info.setProductName(product.getProductName());
+                    return info;
+                })
+                .collect(Collectors.toList());
+            response.setProducts(productInfos);
+        }
+        
+        return response;
     }
 }

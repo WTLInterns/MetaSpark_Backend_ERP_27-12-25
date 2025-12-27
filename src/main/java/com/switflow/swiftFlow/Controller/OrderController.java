@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -72,6 +73,14 @@ public class OrderController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<OrderResponse>> getOrdersByDepartment(@PathVariable String department) {
         List<OrderResponse> response = orderService.getOrdersByDepartment(department);
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/update/{orderId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<OrderResponse> updateOrder(@PathVariable Long orderId, 
+                                                     @RequestBody OrderRequest orderRequest) {
+        OrderResponse response = orderService.updateOrder(orderId, orderRequest);
         return ResponseEntity.ok(response);
     }
 

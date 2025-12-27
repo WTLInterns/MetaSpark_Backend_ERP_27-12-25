@@ -46,6 +46,7 @@ public class PdfController {
     public static class RowSelectionRequest {
         private List<String> selectedRowIds;
         private Long machineId; // optional, used for machining-selection
+        private Boolean threeCheckbox; // optional, used for three-checkbox UI
 
         public List<String> getSelectedRowIds() {
             return selectedRowIds;

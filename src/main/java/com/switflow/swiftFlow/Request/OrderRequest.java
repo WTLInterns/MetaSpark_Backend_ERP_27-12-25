@@ -22,4 +22,8 @@ public class OrderRequest {
 
     private Department department;
 
+    private Integer customerId;
+
+    private Integer productId;
+
 }
