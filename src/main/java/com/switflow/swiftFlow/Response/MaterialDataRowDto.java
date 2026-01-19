@@ -13,7 +13,7 @@ public class MaterialDataRowDto {
     private String thickness;
     private String sizeX;
     private String sizeY;
-    private int sheetQty;
+    private Integer sheetQty;
     private String notes;
     private boolean status;
 }

@@ -5,19 +5,26 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
 public class PartsRowDto {
-    private int rowNo;
+    private String rowNo;
     private String partName;
     private String previewImageUrl;
     private String material;
     private String thickness;
-    private int requiredQty;
-    private int placedQty;
-    private double weightKg;
+    private Integer requiredQty;
+    private Integer placedQty;
+    private Double weightKg;
     private String timePerInstance;
-    private int pierceQty;
-    private double cuttingLength;
+    private Integer pierceQty;
+    private Double cuttingLength;
     private boolean status;
+    
+    // New fields for PDF coordinate mapping
+    private Integer pageNumber;
+    private Float yPosition;
+    
+    // Size fields for nesting PDF support
+    private String sizeX;
+    private String sizeY;
 }

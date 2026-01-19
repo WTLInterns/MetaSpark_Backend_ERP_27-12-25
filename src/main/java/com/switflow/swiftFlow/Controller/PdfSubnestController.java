@@ -52,4 +52,24 @@ public class PdfSubnestController {
         String text = pdfSubnestService.extractRawTextFromUrl(attachmentUrl);
         return ResponseEntity.ok(text);
     }
+
+    // ========== NEW ENDPOINTS FOR NESTING PDF FORMAT ==========
+
+    @GetMapping("/nesting/by-url")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING','INSPECTION')")
+    public ResponseEntity<List<SubNestRowDto>> getNestingSubnestByUrl(@RequestParam("attachmentUrl") String attachmentUrl) {
+        return ResponseEntity.ok(pdfSubnestService.parseNestingSubnestFromUrl(attachmentUrl));
+    }
+
+    @GetMapping("/nesting/parts/by-url")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING','INSPECTION')")
+    public ResponseEntity<List<PartsRowDto>> getNestingPartsByUrl(@RequestParam("attachmentUrl") String attachmentUrl) {
+        return ResponseEntity.ok(pdfSubnestService.parseNestingPartsFromUrl(attachmentUrl));
+    }
+
+    @GetMapping("/nesting/material-data/by-url")
+    @PreAuthorize("hasAnyRole('ADMIN','DESIGN','PRODUCTION','MACHINING','INSPECTION')")
+    public ResponseEntity<List<MaterialDataRowDto>> getNestingMaterialDataByUrl(@RequestParam("attachmentUrl") String attachmentUrl) {
+        return ResponseEntity.ok(pdfSubnestService.parseNestingMaterialDataFromUrl(attachmentUrl));
+    }
 }
